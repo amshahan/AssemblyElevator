@@ -82,17 +82,17 @@ UpOnOne:					;Going Up On 1
 OR DL, 10101010B			;Only worry about the up calls
 OR AL, 11100001B			;Only worry about the destinations above this floor
 JMP ProcessUpCalls
-UpOnTwo:
-OR DL, 10101011B
-OR AL, 11100011B
+UpOnTwo:					;Going Up On 2
+OR DL, 10101011B			;Only worry about the up calls
+OR AL, 11100011B			;Only worry about the destinations above this floor
 JMP ProcessUpCalls
-UpOnThree:
-OR DL, 10101111B
-OR AL, 11100111B
+UpOnThree:					;Going Up On 3
+OR DL, 10101111B			;Only worry about the up calls
+OR AL, 11100111B			;Only worry about the destinations above this floor
 JMP ProcessUpCalls
-UpOnFour:
-OR DL, 10111111B
-OR AL, 11101111B
+UpOnFour:					;Going Up On 4
+OR DL, 10111111B			;Only worry about the up calls
+OR AL, 11101111B			;Only worry about the destinations above this floor
 JMP ProcessUpCalls
 UpOnFive:					;Since the elevator can't go up from 5
 CALL SET_MOVING_DOWN		;Set the elevator to go up
@@ -104,12 +104,12 @@ CALL UPDATE_LEDS
 CMP DL, 0FFH						;Are there calls?
 JNE MoveUpDirection
 CMP AL, 0FFH						;Are there user destinations?
-JNE MoveUpDirection
-CALL SET_MOVING_DOWN
+JNE MoveUpDirection					;If there are no calls of any kind in the up direction,
+CALL SET_MOVING_DOWN				;Search the down direction
 JMP SearchCallsDown
 
-MoveUpDirection:
-CALL MOVE_UP
+MoveUpDirection:			;Move Up and Check Whether a user wants on or off
+CALL MOVE_UP				
 CALL CHECK_USER_WANTS_OFF
 CALL CHECK_USER_WANTS_ON
 JMP DetermineMovement
@@ -134,21 +134,21 @@ JE DownOnFive
 DownOnOne:							;Since we can't go down from 1
 CALL SET_MOVING_UP					;Set the elevator to go up
 JMP SearchCallsUp					;And Search up
-DownOnTwo:
-OR DL, 11111101B
-OR AL, 11111110B
+DownOnTwo:					;Going down on 2
+OR DL, 11111101B			;Only worry about the down calls
+OR AL, 11111110B			;Only worry about the destinations below this floor
 JMP ProcessDownCalls
-DownOnThree:
-OR DL, 11110101B
-OR AL, 11111100B
+DownOnThree:				;Going down on 3
+OR DL, 11110101B			;Only worry about the down calls
+OR AL, 11111100B			;Only worry about the destinations below this floor
 JMP ProcessDownCalls
-DownOnFour:
-OR DL, 11010101B
-OR AL, 11111000B
+DownOnFour:					;Going down on 4
+OR DL, 11010101B			;Only worry about the down calls
+OR AL, 11111000B			;Only worry about the destinations below this floor
 JMP ProcessDownCalls
-DownOnFive:
-OR DL, 01010101B
-OR AL, 11110000B
+DownOnFive:					;Going down on 5
+OR DL, 01010101B			;Only worry about the down calls
+OR AL, 11110000B			;Only worry about the destinations below this floor
 JMP ProcessDownCalls
 
 ProcessDownCalls:
@@ -157,11 +157,11 @@ CALL UPDATE_LEDS
 CMP DL, 0FFH						;Are there calls?
 JNE MoveDownDirection
 CMP AL, 0FFH						;Are there user destinations?
-JNE MoveDownDirection
-CALL SET_MOVING_UP
+JNE MoveDownDirection				;If there are no calls in the down direction,
+CALL SET_MOVING_UP					;Search up
 JMP SearchCallsUp
 
-MoveDownDirection:
+MoveDownDirection:			;Move down and check whether the user wants on or off
 CALL MOVE_DOWN
 CALL CHECK_USER_WANTS_OFF
 CALL CHECK_USER_WANTS_ON
@@ -175,6 +175,7 @@ INT 21H
 
 ;----------Subroutines----------
 ;----SETUP----
+;Setup the inital states of the I/O Ports
 SETUP:
 MOV DX, 143H
 MOV AL, 02H
@@ -285,7 +286,7 @@ POP DX
 RET
 
 ;----SET MOVING DOWN----
-SET_MOVING_DOWN:
+SET_MOVING_DOWN:		;Set the elevator to move down
 PUSH SI
 PUSH AX
 MOV AH, MovingDown
@@ -308,7 +309,7 @@ POP DX
 RET
 
 ;----SET MOVING UP----
-SET_MOVING_UP:
+SET_MOVING_UP:		;Set the elevator to move up
 PUSH SI
 PUSH AX
 MOV AH, MovingUp
@@ -326,10 +327,10 @@ PUSH SI
 PUSH BX
 MOV CX, 3
 MOV BX, 1
-CALL RESET_ELEVATOR_CALLS
-CMP BX, 0
-JNE EndGetDestinations
-LEA SI, CurrentFloorStatement
+CALL RESET_ELEVATOR_CALLS	;Reset the current elevator calls for this floor, because the people requesting the elevator got on
+CMP BX, 0					;BX is set to 0 by RESET_ELEVATOR_CALLS in order to determine whether people want on
+JNE EndGetDestinations		;Nobody Wants On
+LEA SI, CurrentFloorStatement	;Print the current floor statement, along with the current floor number
 CALL PRINT
 CALL PRINT_CURRENT_FLOOR
 MOV DL, 0DH
@@ -337,7 +338,7 @@ INT 21H
 MOV DL, 0AH
 INT 21H
 PromptDestination:
-CALL GREET_USER
+CALL GREET_USER				;Ask the user what floor they'd like
 MOV AH, 1
 INT 21H
 PUSH AX
@@ -363,6 +364,7 @@ CMP AL, 35H		;User Entered a 5
 JE Floor5Destination
 JNE InvalidDestination
 
+;Depending on the floor input, mark that floor in UserDestinations
 Floor1Destination:
 AND UserDestinations, 11111110B
 JMP PromptNextDestination
@@ -402,10 +404,13 @@ RET
 RESET_ELEVATOR_CALLS:
 PUSH DX
 PUSH AX
+;If there are no elevator calls, exit
 CMP ElevatorCalls, 0FFH
 JE EndResetCalls
+
 MOV DL, ElevatorCalls
 MOV AL, ElevatorMotion
+;Reset different bits depending on the current floor
 CMP CurrentFloor, 11111110B
 JE ResetOnOne
 CMP CurrentFloor, 11111101B
@@ -417,6 +422,8 @@ JE ResetOnFour
 CMP CurrentFloor, 11101111B
 JE ResetOnFive
 
+;For each floor, reset different bits depending on the current direction
+;the elevator is headed
 ResetOnOne:
 CMP AL, MovingUp
 JE ResetUpOneCall
@@ -502,8 +509,10 @@ RET
 ;----RESET USER DESTINATIONS----
 RESET_USER_DESTINATIONS:
 PUSH DX
+;If there are no user destinations, exit
 CMP UserDestinations, 0FFH
 JE EndResetUserDestinations
+;Reset different bits based on the current floor
 MOV DL, UserDestinations
 CMP CurrentFloor, 11111110B
 JE ResetOnOneB
@@ -558,6 +567,7 @@ POP DX
 RET
 
 ;----GREET USER----
+;Prompt the user to enter a floor
 GREET_USER:
 PUSH SI
 PUSH DX
@@ -580,10 +590,12 @@ PUSH DX
 PUSH SI
 POP SI
 MOV BX, 1
-CALL RESET_USER_DESTINATIONS
+CALL RESET_USER_DESTINATIONS	;Check if somebody wants off and the UserDestination bit needs reset
 CMP BX, 0
 JNE NobodyWantsOff
+;If somebody wants off, say goodbye
 CALL SAY_BYE
+;Reset the bit of UserDestinations corresponding to the current floor
 MOV DH, CurrentFloor
 NOT DH
 OR UserDestinations, DH
@@ -592,6 +604,7 @@ POP DX
 RET
 
 ;----SAY BYE----
+;Say goodbye to the user for the current floor
 SAY_BYE:
 PUSH SI
 PUSH AX
@@ -611,10 +624,12 @@ POP SI
 RET
 
 ;----PRINT CURRENT FLOOR----
+;Print the current floor number
 PRINT_CURRENT_FLOOR:
 MOV AH, 2
+;Print a different statment based on the current floor
 MOV AL, CurrentFloor
-OR AL, 11100000B
+OR AL, 11100000B		;Worry only about the 5 bits that actually correspond to floor values
 CMP AL, 11111110B
 JE PrintFloor1
 CMP AL, 11111101B
@@ -626,6 +641,7 @@ JE PrintFloor4
 CMP AL, 11101111B
 JE PrintFloor5
 
+;Print floor numbers respectively
 PrintFloor1:
 MOV DL, "1"
 INT 21H
@@ -651,6 +667,7 @@ PrintEnd:
 RET
 
 ;----UPDATE LEDS----
+;Update the LEDS by sending their states to the ports
 UPDATE_LEDS:
 CALL ELEVATOR_DIRECTIONS_LEDS
 CALL ELEVATOR_STATUS_LEDS
@@ -675,8 +692,8 @@ PUSH DX
 PUSH AX
 
 MOV DX, 141H
-MOV AL, CurrentFloor
-AND AL, ElevatorMotion
+MOV AL, CurrentFloor	;AND CurrentFloor and ElevatorMotion to get a byte value
+AND AL, ElevatorMotion	;for both pieces of data that can be sent to the port at once
 OUT DX, AL
 
 POP AX
